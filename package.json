@@ -9,9 +9,12 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@assistant-ui/react": "^0.8.15",
+    "@assistant-ui/react-ai-sdk": "^0.8.0",
     "@codesandbox/sandpack-react": "^2.20.0",
     "@shadcn/ui": "^0.0.4",
     "@vercel/blob": "^0.27.3",
+    "ai": "^4.2.11",
     "chart.js": "^4.4.8",
     "langchain": "^0.3.19",
     "next": "15.2.4",
