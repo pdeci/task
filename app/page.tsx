@@ -1,103 +1,87 @@
-import Image from "next/image";
+"use client";
+import { useAssistant } from "ai/react"; // From Vercel AI SDK
+import { AssistantRuntimeProvider } from "@assistant-ui/react";
+import { useVercelUseAssistantRuntime } from "@assistant-ui/react-ai-sdk";
+import { useState } from "react";
+import OpenAI from "openai";
+
+// Initialize OpenAI API
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// Runtime provider component
+function MyRuntimeProvider({ children }: { children: React.ReactNode }) {
+  const assistant = useAssistant({ api: "/api/chat" });
+  const runtime = useVercelUseAssistantRuntime(assistant);
+  return <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>;
+}
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [fileUrl, setFileUrl] = useState<string | null>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+  // File upload handler
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const res = await fetch("/api/upload", { method: "POST", body: formData });
+    const data = await res.json();
+    if (data.url) setFileUrl(data.url);
+  };
+
+  // Chat logic using useAssistant
+  const { messages, input, setInput, submitMessage: originalSubmitMessage } = useAssistant({
+    api: "/api/chat",
+  });
+
+  const submitMessage = (message: string) => {
+    originalSubmitMessage({ preventDefault: () => {}, target: { elements: { input: { value: message } } } } as unknown as React.FormEvent<HTMLFormElement>);
+  };
+
+  // Add initial message if fileUrl exists
+  if (fileUrl) {
+    submitMessage(`User uploaded a file: ${fileUrl}`);
+  }
+
+  const handleMessageSend = (message: string) => {
+    console.log("User sent:", message);
+    submitMessage(message);
+  };
+
+  return (
+    <MyRuntimeProvider>
+      <div className="min-h-screen p-4">
+        <h1 className="text-2xl font-bold mb-4">Chatbot MVP</h1>
+        <input type="file" accept=".csv,.xlsx" onChange={handleFileUpload} />
+        {fileUrl && <p>File uploaded: {fileUrl}</p>}
+        <div className="chat-container">
+          {messages.map((msg, index) => (
+            <div key={index} className={msg.role === "user" ? "text-right" : "text-left"}>
+              <p>{msg.content}</p>
+            </div>
+          ))}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleMessageSend(input);
+              setInput("");
+            }}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              className="border p-2 w-full mt-4"
+              placeholder="Type your message..."
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            <button type="submit" className="mt-2 bg-blue-500 text-white p-2">
+              Send
+            </button>
+          </form>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      </div>
+    </MyRuntimeProvider>
   );
 }
