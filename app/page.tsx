@@ -6,7 +6,7 @@ import { useState } from "react";
 import OpenAI from "openai";
 
 // Initialize OpenAI API
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({ apiKey: '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', dangerouslyAllowBrowser: true });
 
 // Runtime provider component
 function MyRuntimeProvider({ children }: { children: React.ReactNode }) {

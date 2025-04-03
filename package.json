@@ -12,6 +12,8 @@
     "@assistant-ui/react": "^0.8.15",
     "@assistant-ui/react-ai-sdk": "^0.8.0",
     "@codesandbox/sandpack-react": "^2.20.0",
+    "@langchain/core": "^0.3.43",
+    "@langchain/openai": "^0.5.2",
     "@shadcn/ui": "^0.0.4",
     "@vercel/blob": "^0.27.3",
     "ai": "^4.2.11",
