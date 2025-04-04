@@ -129,7 +129,7 @@ The system employs a robust error handling mechanism:
    |       |                             v
    |       |                     Visualization Generation
    |       |                             |
-   |    Component Code <----------------|
+   |    Component Code <-----------------|
    |       |                             |
    v       v                             |
 Sandpack Renderer                        |
