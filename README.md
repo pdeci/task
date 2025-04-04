@@ -134,6 +134,26 @@ The system employs a robust error handling mechanism:
    v       v                             |
 Sandpack Renderer                        |
    |                                     |
+   |--> Runtime Error Detected           |
+   |       |                             |
+   |       v                             |
+   |    Error Monitor                    |
+   |       |                             |
+   |       v                             |
+   |    Error Handler -----------------> API Regenerate Route
+   |       ^                             |
+   |       |                             v
+   |       |                         Agent Code
+   |       |                         (with error info)
+   |       |                             |
+   |       |                             v
+   |       |                     Improved Visualization
+   |       |                             |
+   |    Fixed Code <---------------------|
+   |       |                             |
+   v       v                             |
+Sandpack Re-renders                      |
+   |                                     |
 ```
 
 
