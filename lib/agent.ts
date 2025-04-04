@@ -3,6 +3,32 @@ import { HumanMessage } from "@langchain/core/messages";
 import Papa from "papaparse";
 
 /**
+ * Get CSV data from a URL
+ */
+export async function getCSVData(fileUrl: string) {
+  try {
+    const response = await fetch(fileUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch CSV: ${response.status}`);
+    }
+    
+    const csvData = await response.text();
+    
+    // Parse the CSV data
+    const parsedData = Papa.parse(csvData, {
+      header: true,
+      skipEmptyLines: true,
+      dynamicTyping: true
+    });
+    
+    return parsedData;
+  } catch (error) {
+    console.error("Error fetching CSV data:", error);
+    throw error;
+  }
+}
+
+/**
  * Generate a React component based on CSV data and user query
  * with automatic error detection and retry
  */
@@ -19,10 +45,10 @@ export async function generateCode(
     // IMPORTANT: This is a temporary solution. 
     // Replace this with your actual OpenAI API key for testing,
     // then move it to environment variables once working
-    //const DIRECT_API_KEY = ""; // Add your key here temporarily if needed
+    const DIRECT_API_KEY = "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"; // Add your key here temporarily if needed
 
     // Try multiple sources for the API key
-    const apiKey = //DIRECT_API_KEY || 
+    const apiKey = DIRECT_API_KEY || 
                    process.env.OPENAI_API_KEY || 
                    process.env.NEXT_PUBLIC_OPENAI_API_KEY;
     
@@ -33,26 +59,13 @@ export async function generateCode(
     // Initialize the model with the API key
     const model = new ChatOpenAI({
       apiKey: apiKey,
-      modelName: "gpt-3.5-turbo",
+      modelName: "gpt-4o",
       temperature: 0.2,
       maxTokens: 1500,
     });
 
     // Fetch the CSV data
-    const response = await fetch(fileUrl);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch CSV: ${response.status}`);
-    }
-    
-    // Get CSV content
-    const csvData = await response.text();
-    
-    // Parse the CSV data here to analyze what's in it
-    const parsedData = Papa.parse(csvData, {
-      header: true,
-      skipEmptyLines: true,
-      dynamicTyping: true
-    });
+    const parsedData = await getCSVData(fileUrl);
     
     // Analyze the query type
     const queryType = determineQueryType(userQuery);
@@ -65,7 +78,7 @@ export async function generateCode(
       "${userQuery}"
       
       # CSV Data
-      This data has been pre-parsed and will be provided directly to the component.
+      This data has been pre-parsed and will be provided via an import from a data.ts file.
       Headers: ${parsedData.meta.fields?.join(', ') || ''}
       Number of rows: ${parsedData.data.length}
       
@@ -75,26 +88,27 @@ export async function generateCode(
       The previous attempt failed with this error:
       ${previousError}
       
-      Fix the specific issue mentioned in the error. Be extremely careful about proper Chart.js setup and registration.
+      Fix the specific issue mentioned in the error. Make sure to import data from the data.ts file using: import { data, headers } from './data';
       ` : ''}
       
       # Task
       Create a React component that ${getTaskDescription(queryType)} based on the CSV data.
       
       # Requirements
-      1. Create a valid React TypeScript component with "export default function App()"
+      1. Create a valid React TypeScript component with "export default function App()" WITHOUT ANY PARAMETERS
       2. Use react-chartjs-2 for visualizations
-      3. IMPORTANT: Do NOT use Papa.parse or include any data fetching logic - the parsed data will be provided
-      4. Include proper Chart.js setup with ALL required imports and registrations
+      3. IMPORTANT: You must import data using "import { data, headers } from './data';" - this is where the CSV data will be available
+      4. Include proper Chart.js setup with ALL imports and registrations as below
       5. Use dark-themed colors that work well on a black background
-      6. Make sure to ALWAYS register ALL necessary Chart.js components: CategoryScale, LinearScale, PointElement, LineElement, BarElement, RadialLinearScale, Title, Tooltip, Legend, ArcElement
+      6. Make sure to ALWAYS import and register ALL necessary Chart.js components: CategoryScale, LinearScale, PointElement, LineElement, BarElement, RadialLinearScale, Title, Tooltip, Legend, ArcElement
       7. Make sure to correctly handle ALL data types and prevent any runtime errors
       
-      # Chart.js Proper Setup Example
+      # Chart.js Proper Setup
       ALWAYS include this EXACT Chart.js registration pattern if creating any charts:
       
       \`\`\`tsx
       import React, { useState, useEffect } from 'react';
+      import { data, headers } from './data';
       import {
         Chart as ChartJS,
         CategoryScale,
@@ -132,6 +146,8 @@ export async function generateCode(
       - Handle empty data sets gracefully
       - Ensure color and styling work well with dark mode
       - Include proper type checks for data values
+      - DO NOT use props or parameters in your App component function
+      - REMEMBER to import data using "import { data, headers } from './data';"
       
       # Response Format
       Provide ONLY the complete code for the component.
@@ -145,8 +161,13 @@ export async function generateCode(
     generatedCode = generatedCode.replace(/```(typescript|tsx|javascript|jsx|js|ts)?\n/g, '');
     generatedCode = generatedCode.replace(/```\n?$/g, '');
     
-    // Add pre-parsed data and enhance for dark mode
-    const enhancedCode = enhanceCodeWithParsedData(generatedCode, parsedData);
+    // Add data import if missing
+    if (!generatedCode.includes("import { data, headers } from './data'")) {
+      generatedCode = `import { data, headers } from './data';\n${generatedCode}`;
+    }
+    
+    // Add proper Chart.js setup if missing
+    generatedCode = enhanceCodeWithChartSetup(generatedCode);
     
     // If there's an error, we'll catch it in the parent function and retry
     if (previousError && retryCount >= MAX_RETRIES) {
@@ -154,7 +175,7 @@ export async function generateCode(
     }
     
     // Return the enhanced code
-    return enhancedCode;
+    return generatedCode;
     
   } catch (error) {
     console.error("Error generating code:", error);
@@ -165,6 +186,7 @@ export async function generateCode(
     // Return a fallback component that displays the error
     return `
 import React from 'react';
+import { data, headers } from './data';
 
 export default function App() {
   return (
@@ -240,31 +262,26 @@ function getTaskDescription(queryType: string): string {
 }
 
 /**
- * Enhance the generated code with parsed data and dark mode optimizations
+ * Enhance generated code with proper Chart.js setup
  */
-function enhanceCodeWithParsedData(code: string, parsedData: any): string {
-  // If the code is already an import React statement, don't modify it
-  if (code.trim().startsWith('import React')) {
-    // Just fix the data access
-    code = code.replace(/fetch\s*\(\s*.*?\s*\)/g, "// Data is already provided");
-    code = code.replace(/Papa\.parse\s*\(\s*.*?\s*\)/g, "// Data is already parsed");
-    
-    // Add data after the App function
+function enhanceCodeWithChartSetup(code: string): string {
+  // Check if the code has parameters in the App function
+  const hasAppParams = /export\s+default\s+function\s+App\s*\(\s*(\{[^}]*\}|\w+)[^)]*\)/.test(code);
+  
+  // If the component has parameters, we need to remove them
+  if (hasAppParams) {
     code = code.replace(
-      /export\s+default\s+function\s+App\s*\(\s*\)\s*\{/,
-      `export default function App() {
-  // Pre-parsed data - already available, no need to fetch or parse
-  const data = ${JSON.stringify(parsedData.data)};
-  const headers = ${JSON.stringify(parsedData.meta.fields || [])};`
+      /export\s+default\s+function\s+App\s*\(\s*(\{[^}]*\}|\w+)[^)]*\)/,
+      'export default function App()'
     );
-    
-    return code;
   }
   
-  // If it looks like React code but doesn't have imports, add them
-  if (code.includes('function App()') || code.includes('export default function App()')) {
-    if (!code.includes('import React')) {
-      code = `import React, { useState, useEffect } from 'react';
+  // Check if Chart.js imports are present and add them if missing
+  if (!code.includes('Chart as ChartJS') && 
+      (code.includes('Bar') || code.includes('Line') || code.includes('Pie'))) {
+    
+    const chartImports = `import React, { useState, useEffect } from 'react';
+import { data, headers } from './data';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -292,172 +309,19 @@ ChartJS.register(
   Tooltip,
   Legend,
   ArcElement
-);
-${code}`;
-    }
+);`;
+    
+    // Remove any existing import statements
+    code = code.replace(/^import.*?;(\r?\n|\r)?/gm, '');
+    
+    // Add our comprehensive imports at the beginning
+    code = `${chartImports}\n\n${code}`;
   }
-  
-  // If the code is completely invalid or not React, create a basic component
-  if (!code.includes('function App') && !code.includes('export default')) {
-    return `
-import React, { useState, useEffect } from 'react';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-  ArcElement
-} from 'chart.js';
-import { Bar } from 'react-chartjs-2';
-
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-  ArcElement
-);
-
-export default function App() {
-  // Pre-parsed data - already available, no need to fetch or parse
-  const data = ${JSON.stringify(parsedData.data)};
-  const headers = ${JSON.stringify(parsedData.meta.fields || [])};
-  
-  // Find the first string column for labels
-  const labelColumn = headers.find(col => 
-    typeof data[0][col] === 'string' || data[0][col] === null
-  ) || headers[0];
-  
-  // Find numeric columns for values
-  const valueColumns = headers.filter(col => 
-    typeof data[0][col] === 'number'
-  ).slice(0, 3);
-  
-  // Default to first column if no numeric columns found
-  const dataColumn = valueColumns.length > 0 ? valueColumns[0] : headers[0];
-  
-  // Colors for the chart
-  const colors = [
-    'rgba(53, 162, 235, 0.5)', 
-    'rgba(255, 99, 132, 0.5)',
-    'rgba(75, 192, 192, 0.5)'
-  ];
-  
-  const chartData = {
-    labels: data.map(row => row[labelColumn]?.toString() || 'N/A'),
-    datasets: valueColumns.map((column, index) => ({
-      label: column,
-      data: data.map(row => row[column] || 0),
-      backgroundColor: colors[index % colors.length],
-      borderColor: colors[index % colors.length].replace('0.5', '1'),
-      borderWidth: 1,
-    })),
-  };
-  
-  const options = {
-    responsive: true,
-    scales: {
-      x: {
-        ticks: { color: '#e5e7eb' },
-        grid: { color: '#374151' }
-      },
-      y: {
-        ticks: { color: '#e5e7eb' },
-        grid: { color: '#374151' }
-      }
-    },
-    plugins: {
-      legend: {
-        position: 'top',
-      },
-      title: {
-        display: true,
-        text: 'Data Visualization',
-        color: '#e5e7eb'
-      },
-    },
-  };
-  
-  return (
-    <div className="p-4 text-white">
-      <h1 className="text-2xl font-bold mb-4">Data Visualization</h1>
-      
-      <div className="h-64 w-full mb-6 bg-gray-800 p-4 rounded-lg">
-        <Bar options={options} data={chartData} />
-      </div>
-      
-      <div className="mt-6">
-        <h2 className="text-xl font-bold mb-2">Data Preview</h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full bg-gray-800 border border-gray-700">
-            <thead>
-              <tr>
-                {headers.map(header => (
-                  <th key={header} className="px-4 py-2 border border-gray-700 text-gray-300">
-                    {header}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {data.slice(0, 10).map((row, rowIndex) => (
-                <tr key={rowIndex} className={rowIndex % 2 === 0 ? 'bg-gray-800' : 'bg-gray-900'}>
-                  {headers.map(header => (
-                    <td key={rowIndex + '-' + header} className="px-4 py-2 border border-gray-700 text-gray-300">
-                      {row[header]?.toString() || ''}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {data.length > 10 && (
-            <p className="text-sm text-gray-400 mt-2">
-              Showing 10 of {data.length} rows
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}`;
-  }
-  
-  // Create the data injection code
-  const dataInjection = `
-  // Pre-parsed data - already available, no need to fetch or parse
-  const data = ${JSON.stringify(parsedData.data)};
-  const headers = ${JSON.stringify(parsedData.meta.fields || [])};
-`;
-
-  // Insert after the opening of the App function
-  let enhancedCode = code.replace(
-    /export\s+default\s+function\s+App\s*\(\s*\)\s*\{/,
-    `export default function App() {${dataInjection}`
-  );
-  
-  // Remove any data fetching or Papa.parse code
-  enhancedCode = enhancedCode.replace(
-    /useEffect\(\s*\(\s*\)\s*=>\s*\{\s*(?:async\s*)?(?:function\s*\w*\s*\(\s*\)\s*\{)?.*?fetch\(.*?}\s*,\s*\[\s*\]\s*\)/gs,
-    `useEffect(() => {
-    // Data is already parsed and available
-    setLoading(false);
-  }, [])`
-  );
   
   // Ensure all required Chart.js components are registered
-  if (enhancedCode.includes('ChartJS.register(') && 
-      (!enhancedCode.includes('LinearScale') || !enhancedCode.includes('RadialLinearScale'))) {
-    enhancedCode = enhancedCode.replace(
+  if (code.includes('ChartJS.register(') && 
+      (!code.includes('LinearScale') || !code.includes('RadialLinearScale'))) {
+    code = code.replace(
       /ChartJS\.register\(([\s\S]*?)\)/,
       `ChartJS.register(
   CategoryScale,
@@ -474,43 +338,22 @@ export default function App() {
     );
   }
   
-  // Ensure Chart.js imports include all required components
-  if (enhancedCode.includes('import {') && enhancedCode.includes('chart.js') && 
-      (!enhancedCode.includes('LinearScale') || !enhancedCode.includes('RadialLinearScale'))) {
-    enhancedCode = enhancedCode.replace(
-      /import\s*\{([\s\S]*?)\}\s*from\s*'chart\.js'/,
-      `import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  RadialLinearScale,
-  Title,
-  Tooltip,
-  Legend,
-  ArcElement
-} from 'chart.js'`
-    );
-  }
-  
   // Add default dark mode settings for Chart.js
-  if (enhancedCode.includes('ChartJS.register(')) {
-    enhancedCode = enhancedCode.replace(
+  if (code.includes('ChartJS.register(') && !code.includes('ChartJS.defaults.color')) {
+    code = code.replace(
       /ChartJS\.register\(/,
       `// Configure Chart.js for dark mode
-  ChartJS.defaults.color = '#e5e7eb';
-  ChartJS.defaults.borderColor = '#374151';
-  
-  ChartJS.register(`
+ChartJS.defaults.color = '#e5e7eb';
+ChartJS.defaults.borderColor = '#374151';
+
+ChartJS.register(`
     );
   }
   
   // Update any options objects to include dark mode text for charts
   const optionsRegex = /(const|let|var)\s+options\s*=\s*\{/;
-  if (optionsRegex.test(enhancedCode) && !enhancedCode.includes("color: '#e5e7eb'")) {
-    enhancedCode = enhancedCode.replace(
+  if (optionsRegex.test(code) && !code.includes("color: '#e5e7eb'")) {
+    code = code.replace(
       optionsRegex,
       `$1 options = {
       scales: {
@@ -527,8 +370,8 @@ export default function App() {
   }
   
   // Add proper loading state if missing
-  if (!enhancedCode.includes('useState') && !enhancedCode.includes('loading')) {
-    enhancedCode = enhancedCode.replace(
+  if (!code.includes('useState') && !code.includes('[loading, setLoading]')) {
+    code = code.replace(
       /export default function App\(\) \{/,
       `export default function App() {
   const [loading, setLoading] = useState(false);
@@ -549,34 +392,29 @@ export default function App() {
     );
   }
   
-  // Add the missing imports if necessary
-  if (enhancedCode.includes('useState') && !enhancedCode.includes('import React')) {
-    enhancedCode = `import React, { useState, useEffect } from 'react';\n${enhancedCode}`;
-  }
-  
   // Fix any missing table styles for dark mode
-  if (enhancedCode.includes('<table')) {
-    enhancedCode = enhancedCode.replace(
+  if (code.includes('<table')) {
+    code = code.replace(
       /<table[^>]*>/g,
       '<table className="min-w-full bg-gray-800 border border-gray-700">'
     );
     
-    if (enhancedCode.includes('<th')) {
-      enhancedCode = enhancedCode.replace(
+    if (code.includes('<th')) {
+      code = code.replace(
         /<th[^>]*>/g,
         '<th className="px-4 py-2 border border-gray-700 text-gray-300">'
       );
     }
     
-    if (enhancedCode.includes('<td')) {
-      enhancedCode = enhancedCode.replace(
+    if (code.includes('<td')) {
+      code = code.replace(
         /<td[^>]*>/g,
         '<td className="px-4 py-2 border border-gray-700 text-gray-300">'
       );
     }
   }
   
-  return enhancedCode;
+  return code;
 }
 
 // Main export with error handling and retry capability
@@ -594,7 +432,13 @@ export async function generateCodeWithRetry(
       // Generate code with knowledge of previous error if any
       generatedCode = await generateCode(fileUrl, userQuery, lastError ? lastError.toString() : undefined, retryCount);
       
-      // No validation - if we got something, return it
+      // Basic check for syntax errors without executing the code
+      // Just check if it contains expected elements
+      if (!generatedCode.includes('export default function App')) {
+        throw new Error("Generated code is missing essential elements");
+      }
+      
+      // If no error was thrown during validation, return the code
       return generatedCode;
     } catch (error) {
       // Capture the error for the next attempt
@@ -607,6 +451,7 @@ export async function generateCodeWithRetry(
         console.error(`Max retries (${MAX_RETRIES}) reached, returning error component`);
         return `
 import React from 'react';
+import { data, headers } from './data';
 
 export default function App() {
   return (

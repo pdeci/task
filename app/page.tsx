@@ -4,7 +4,7 @@ import { AssistantRuntimeProvider } from "@assistant-ui/react";
 import { useVercelUseAssistantRuntime } from "@assistant-ui/react-ai-sdk";
 import { useState, useEffect } from "react";
 import { Sandpack, SandpackConsole, SandpackProvider, SandpackLayout, SandpackCodeEditor, SandpackPreview } from "@codesandbox/sandpack-react";
-import { generateCodeWithRetry } from "@/lib/agent"; // Updated import
+import { generateCodeWithRetry, getCSVData } from "@/lib/agent"; // Updated import
 
 function MyRuntimeProvider({ children }: { children: React.ReactNode }) {
   const assistant = useAssistant({ api: "/api/chat" });
@@ -39,6 +39,7 @@ export default function Home() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [artifactCode, setArtifactCode] = useState<string | null>(null);
+  const [csvData, setCsvData] = useState<any>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
@@ -68,6 +69,10 @@ export default function Home() {
       if (data.url) {
         setFileUrl(data.url);
         console.log("Upload successful:", data.url);
+        
+        // Fetch and parse the CSV data
+        const parsedData = await getCSVData(data.url);
+        setCsvData(parsedData);
         
         append({
           role: "user",
@@ -180,6 +185,16 @@ export default function Home() {
       setIsRegenerating(false);
     }
   };
+
+  // Prepare CSV data for Sandpack
+  const dataFile = csvData ? `
+// This file contains the parsed CSV data
+export const data = ${JSON.stringify(csvData.data)};
+export const headers = ${JSON.stringify(csvData.meta.fields || [])};
+` : `
+export const data = [];
+export const headers = [];
+`;
 
   return (
     <MyRuntimeProvider>
@@ -362,7 +377,10 @@ export default function Home() {
                   <Sandpack
                     theme="dark"
                     template="react-ts"
-                    files={{ "/App.tsx": artifactCode }}
+                    files={{ 
+                      "/App.tsx": artifactCode,
+                      "/data.ts": dataFile
+                    }}
                     options={{ 
                       showConsole: true, 
                       editorHeight: 500,
