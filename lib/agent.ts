@@ -45,10 +45,10 @@ export async function generateCode(
     // IMPORTANT: This is a temporary solution. 
     // Replace this with your actual OpenAI API key for testing,
     // then move it to environment variables once working
-    const DIRECT_API_KEY = "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"; // Add your key here temporarily if needed
+    //const DIRECT_API_KEY = ""; // Add your key here temporarily if needed
 
     // Try multiple sources for the API key
-    const apiKey = DIRECT_API_KEY || 
+    const apiKey = //DIRECT_API_KEY || 
                    process.env.OPENAI_API_KEY || 
                    process.env.NEXT_PUBLIC_OPENAI_API_KEY;
     
