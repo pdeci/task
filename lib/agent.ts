@@ -45,10 +45,10 @@ export async function generateCode(
     // IMPORTANT: This is a temporary solution. 
     // Replace this with your actual OpenAI API key for testing,
     // then move it to environment variables once working
-    //const DIRECT_API_KEY = ""; // Add your key here temporarily if needed
+    const DIRECT_API_KEY = "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"; // Add your key here temporarily if needed
 
     // Try multiple sources for the API key
-    const apiKey = //DIRECT_API_KEY || 
+    const apiKey = DIRECT_API_KEY || 
                    process.env.OPENAI_API_KEY || 
                    process.env.NEXT_PUBLIC_OPENAI_API_KEY;
     
@@ -138,13 +138,37 @@ export async function generateCode(
         ArcElement
       );
       \`\`\`
+
+      # Loading State Pattern
+      ALWAYS include a loading state in your component:
+      
+      \`\`\`tsx
+      export default function App() {
+        const [loading, setLoading] = useState(false);
+        
+        useEffect(() => {
+          // Simulate data loading
+          setTimeout(() => setLoading(false), 500);
+        }, []);
+        
+        if (loading) {
+          return (
+            <div className="p-8 text-center">
+              <p className="text-xl text-gray-300">Loading visualization...</p>
+            </div>
+          );
+        }
+        
+        // Your visualization code goes here
+      }
+      \`\`\`
       
       # Common Error Prevention
       - Always ensure data exists and has the expected format before using it
       - Use optional chaining and nullish coalescing operators to prevent null errors
       - Ensure all Chart.js components are registered properly
       - Handle empty data sets gracefully
-      - Ensure color and styling work well with dark mode
+      - Ensure color and styling work well with dark mode, descripcions should be light colors and background dark
       - Include proper type checks for data values
       - DO NOT use props or parameters in your App component function
       - REMEMBER to import data using "import { data, headers } from './data';"
