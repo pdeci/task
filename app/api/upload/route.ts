@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { put } from "@vercel/blob";
+import { writeFile } from "fs/promises";
+import { join } from "path";
 
 export async function POST(req: NextRequest) {
   try {
+    
     const formData = await req.formData();
     const file = formData.get("file") as File;
 
@@ -10,7 +12,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
     }
 
-    // Validate file type and size (e.g., max 5MB)
+    // Validate file type and size (max 5MB)
     const validTypes = ["text/csv", "application/vnd.ms-excel"];
     if (!validTypes.includes(file.type)) {
       return NextResponse.json({ error: "Invalid file type" }, { status: 400 });
@@ -19,9 +21,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "File too large" }, { status: 400 });
     }
 
-    // Upload to Vercel Blob
-    const blob = await put(file.name, file, { access: "public" });
-    return NextResponse.json({ url: blob.url });
+    // Save to local filesystem
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const uploadDir = join(process.cwd(), "public/uploads");
+    const filePath = join(uploadDir, file.name);
+    await writeFile(filePath, buffer);
+
+    // Return a local URL
+    const url = `/uploads/${file.name}`;
+    console.log("File uploaded to:", url); // Debug
+    return NextResponse.json({ url });
   } catch (error) {
     return NextResponse.json({ error: "Upload failed" }, { status: 500 });
   }
