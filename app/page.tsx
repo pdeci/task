@@ -2,14 +2,35 @@
 import { useAssistant } from "ai/react";
 import { AssistantRuntimeProvider } from "@assistant-ui/react";
 import { useVercelUseAssistantRuntime } from "@assistant-ui/react-ai-sdk";
-import { useState } from "react";
-import { Sandpack } from "@codesandbox/sandpack-react";
-import { generateCodeWithRetry } from "@/lib/agent"; // Updated import
+import { useState, useEffect } from "react";
+import { Sandpack, SandpackConsole, SandpackProvider, SandpackLayout, SandpackCodeEditor, SandpackPreview } from "@codesandbox/sandpack-react";
+import { generateCodeWithRetry, getCSVData } from "@/lib/agent"; // Updated import
 
 function MyRuntimeProvider({ children }: { children: React.ReactNode }) {
   const assistant = useAssistant({ api: "/api/chat" });
   const runtime = useVercelUseAssistantRuntime(assistant);
   return <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>;
+}
+
+// Custom error boundary for the Sandpack component
+function ErrorMonitor({ children, onError }: { children: React.ReactNode; onError: (error: Error) => void }) {
+  useEffect(() => {
+    // Listen for errors from the Sandpack iframe
+    const handleWindowError = (event: ErrorEvent) => {
+      // Check if the error is from a sandbox iframe
+      if (event.filename && event.filename.includes('sandbox')) {
+        onError(new Error(event.message));
+      }
+    };
+
+    window.addEventListener('error', handleWindowError);
+    
+    return () => {
+      window.removeEventListener('error', handleWindowError);
+    };
+  }, [onError]);
+
+  return <>{children}</>;
 }
 
 export default function Home() {
@@ -18,8 +39,12 @@ export default function Home() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [artifactCode, setArtifactCode] = useState<string | null>(null);
+  const [csvData, setCsvData] = useState<any>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [runtimeError, setRuntimeError] = useState<string | null>(null);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   const { messages, input, setInput, append } = useAssistant({
     api: "/api/chat",
@@ -44,6 +69,10 @@ export default function Home() {
       if (data.url) {
         setFileUrl(data.url);
         console.log("Upload successful:", data.url);
+        
+        // Fetch and parse the CSV data
+        const parsedData = await getCSVData(data.url);
+        setCsvData(parsedData);
         
         append({
           role: "user",
@@ -80,9 +109,13 @@ export default function Home() {
       return;
     }
 
+    // Reset error states and retry count for new query
+    setRuntimeError(null);
+    setGenerationError(null);
+    setRetryCount(0);
+
     try {
       setIsGenerating(true);
-      setGenerationError(null);
       setArtifactCode(null); // Clear previous code while generating new one
       
       // Use the updated function with error handling and retry
@@ -109,6 +142,59 @@ export default function Home() {
       setIsGenerating(false);
     }
   };
+
+  // New function to handle Sandpack runtime errors
+  const handleRuntimeError = async (error: Error) => {
+    if (isRegenerating || retryCount >= 2) return; // Limit to 2 retries
+    
+    console.log("Runtime error detected:", error.message);
+    setRuntimeError(error.message);
+    setIsRegenerating(true);
+    setRetryCount(prev => prev + 1);
+    
+    try {
+      // Call API to regenerate code with the error information
+      const response = await fetch('/api/regenerate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          fileUrl, 
+          userQuery: messages[messages.length - 1]?.content || "Fix the chart",
+          errorMessage: error.message
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Regeneration failed with status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      setArtifactCode(data.code);
+      
+      // Append AI message about the fix
+      append({
+        role: "assistant",
+        content: `I've fixed an error in the visualization: "${error.message}". The chart should display correctly now.`,
+      });
+    } catch (error) {
+      console.error("Error regenerating visualization:", error);
+      setGenerationError(error instanceof Error ? error.message : "Unknown error");
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
+  // Prepare CSV data for Sandpack
+  const dataFile = csvData ? `
+// This file contains the parsed CSV data
+export const data = ${JSON.stringify(csvData.data)};
+export const headers = ${JSON.stringify(csvData.meta.fields || [])};
+` : `
+export const data = [];
+export const headers = [];
+`;
 
   return (
     <MyRuntimeProvider>
@@ -230,14 +316,16 @@ export default function Home() {
                     ))
                   )}
                   
-                  {isGenerating && (
+                  {(isGenerating || isRegenerating) && (
                     <div className="chat-message-container assistant">
                       <div className="chat-message assistant">
                         <div className="flex items-center space-x-2">
                           <div className="w-2 h-2 rounded-full animate-pulse bg-gray-500"></div>
                           <div className="w-2 h-2 rounded-full animate-pulse bg-gray-500 animation-delay-200"></div>
                           <div className="w-2 h-2 rounded-full animate-pulse bg-gray-500 animation-delay-400"></div>
-                          <span className="text-sm">Generating visualization...</span>
+                          <span className="text-sm">
+                            {isRegenerating ? "Fixing visualization..." : "Generating visualization..."}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -252,12 +340,12 @@ export default function Home() {
                       onChange={(e) => setInput(e.target.value)}
                       placeholder={fileUrl ? "Ask a question about your data..." : "Upload a file first..."}
                       className="chat-input"
-                      disabled={!fileUrl || isUploading || isGenerating}
+                      disabled={!fileUrl || isUploading || isGenerating || isRegenerating}
                     />
                     <button 
                       type="submit" 
                       className="chat-send-button"
-                      disabled={!fileUrl || !input.trim() || isUploading || isGenerating}
+                      disabled={!fileUrl || !input.trim() || isUploading || isGenerating || isRegenerating}
                     >
                       <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
@@ -273,43 +361,55 @@ export default function Home() {
             <div className="visualization-container card">
               <div className="visualization-header">
                 <h2 className="card-title">Data Visualization</h2>
-                <span className={`status-badge ${isGenerating ? "generating" : "ready"}`}>
-                  {isGenerating ? "Generating..." : "Ready"}
-                </span>
+                <div className="flex items-center space-x-2">
+                  {retryCount > 0 && (
+                    <span className="text-xs text-yellow-400">
+                      Auto-fixed {retryCount} {retryCount === 1 ? 'error' : 'errors'}
+                    </span>
+                  )}
+                  <span className={`status-badge ${isGenerating || isRegenerating ? "generating" : "ready"}`}>
+                    {isGenerating ? "Generating..." : isRegenerating ? "Fixing..." : "Ready"}
+                  </span>
+                </div>
               </div>
               <div className="p-0">
-                <Sandpack
-                  theme="dark"
-                  template="react-ts"
-                  files={{ "/App.tsx": artifactCode }}
-                  options={{ 
-                    showConsole: true, 
-                    editorHeight: 500,
-                    showNavigator: false,
-                    showLineNumbers: true,
-                    editorWidthPercentage: 40,
-                    wrapContent: true,
-                    externalResources: [
-                      "https://cdn.jsdelivr.net/npm/chart.js"
-                    ]
-                  }}
-                  customSetup={{
-                    dependencies: {
-                      "react-chartjs-2": "latest",
-                      "chart.js": "latest",
-                      "@nivo/core": "latest",
-                      "@nivo/bar": "latest",
-                      "@nivo/line": "latest",
-                      "@nivo/pie": "latest",
-                    },
-                  }}
-                />
-                {generationError && (
+                <ErrorMonitor onError={handleRuntimeError}>
+                  <Sandpack
+                    theme="dark"
+                    template="react-ts"
+                    files={{ 
+                      "/App.tsx": artifactCode,
+                      "/data.ts": dataFile
+                    }}
+                    options={{ 
+                      showConsole: true, 
+                      editorHeight: 500,
+                      showNavigator: false,
+                      showLineNumbers: true,
+                      editorWidthPercentage: 40,
+                      wrapContent: true,
+                      externalResources: [
+                        "https://cdn.jsdelivr.net/npm/chart.js"
+                      ]
+                    }}
+                    customSetup={{
+                      dependencies: {
+                        "react-chartjs-2": "latest",
+                        "chart.js": "latest",
+                        "@nivo/core": "latest",
+                        "@nivo/bar": "latest",
+                        "@nivo/line": "latest",
+                        "@nivo/pie": "latest",
+                      },
+                    }}
+                  />
+                </ErrorMonitor>
+                {(generationError || runtimeError) && (
                   <div className="p-4 bg-red-900/20 border-t border-red-700">
                     <p className="text-red-300 text-sm">
-                      <strong>Note:</strong> There was an error during generation. The visualization has been adjusted to fix the issue.
+                      <strong>Note:</strong> {isRegenerating ? "Attempting to fix error..." : "There was an error with the visualization."}
                     </p>
-                    <p className="text-gray-400 text-xs mt-1">Error details: {generationError}</p>
+                    <p className="text-gray-400 text-xs mt-1">Error details: {runtimeError || generationError}</p>
                   </div>
                 )}
               </div>
