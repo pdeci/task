@@ -103,6 +103,8 @@ The system employs a robust error handling mechanism:
 4. Falls back to a default visualization if all attempts fail
 
 ### Data flow
+
+```
 [CLIENT]                              [SERVER]
    |                                     |
    |--> User uploads CSV file            |
@@ -132,6 +134,8 @@ The system employs a robust error handling mechanism:
    v       v                             |
 Sandpack Renderer                        |
    |                                     |
+```
+
 
 ## Technical Components
 
