@@ -4,7 +4,7 @@ import { AssistantRuntimeProvider } from "@assistant-ui/react";
 import { useVercelUseAssistantRuntime } from "@assistant-ui/react-ai-sdk";
 import { useState, useEffect } from "react";
 import { Sandpack, SandpackConsole, SandpackProvider, SandpackLayout, SandpackCodeEditor, SandpackPreview } from "@codesandbox/sandpack-react";
-import { generateCodeWithRetry, getCSVData } from "@/lib/agent"; // Updated import
+import { generateCodeWithRetry, getCSVData } from "@/lib/agent";
 
 function MyRuntimeProvider({ children }: { children: React.ReactNode }) {
   const assistant = useAssistant({ api: "/api/chat" });
@@ -130,7 +130,7 @@ export default function Home() {
           return (
             <div className="p-4 bg-red-900/20 border border-red-700 rounded-md">
               <h2 className="text-xl font-bold text-red-400">Error</h2>
-              <p className="text-red-300">Failed to generate visualization</p>
+              <p className="text-red-300">Failed to generate component</p>
               <p className="text-sm text-gray-300 mt-2">Error details: ${
                 error instanceof Error ? error.message : "Unknown error"
               }</p>
@@ -143,16 +143,24 @@ export default function Home() {
     }
   };
 
-  // New function to handle Sandpack runtime errors
+  // Handle Sandpack runtime errors
   const handleRuntimeError = async (error: Error) => {
     if (isRegenerating || retryCount >= 2) return; // Limit to 2 retries
     
     console.log("Runtime error detected:", error.message);
     setRuntimeError(error.message);
     setIsRegenerating(true);
-    setRetryCount(prev => prev + 1);
+    
+    // Increment retry count
+    const newRetryCount = retryCount + 1;
+    setRetryCount(newRetryCount);
     
     try {
+      // Get the last user query from messages
+      const lastUserMessage = messages
+        .filter(msg => msg.role === "user")
+        .pop()?.content || "Fix the component";
+      
       // Call API to regenerate code with the error information
       const response = await fetch('/api/regenerate', {
         method: 'POST',
@@ -161,8 +169,9 @@ export default function Home() {
         },
         body: JSON.stringify({ 
           fileUrl, 
-          userQuery: messages[messages.length - 1]?.content || "Fix the chart",
-          errorMessage: error.message
+          userQuery: lastUserMessage,
+          errorMessage: error.message,
+          retryCount: newRetryCount
         }),
       });
       
@@ -171,16 +180,29 @@ export default function Home() {
       }
       
       const data = await response.json();
+      
+      // Check if we received valid code
+      if (!data.code) {
+        throw new Error("No code returned from regeneration API");
+      }
+      
+      // Update the artifact code
       setArtifactCode(data.code);
       
       // Append AI message about the fix
       append({
         role: "assistant",
-        content: `I've fixed an error in the visualization: "${error.message}". The chart should display correctly now.`,
+        content: `I've fixed an error in the component: "${error.message}". It should display correctly now.`,
       });
     } catch (error) {
-      console.error("Error regenerating visualization:", error);
+      console.error("Error regenerating component:", error);
       setGenerationError(error instanceof Error ? error.message : "Unknown error");
+      
+      // Display a useful error message to the user
+      append({
+        role: "assistant",
+        content: `I encountered an error while trying to fix the component. You might want to try a different approach or query.`,
+      });
     } finally {
       setIsRegenerating(false);
     }
@@ -196,13 +218,38 @@ export const data = [];
 export const headers = [];
 `;
 
+  // Define an expanded set of dependencies for different UI component types
+  const sandpackDependencies = {
+    // Data visualization
+    "react-chartjs-2": "^5.2.0",
+    "chart.js": "^4.4.0",
+    "@nivo/core": "^0.83.0",
+    "@nivo/bar": "^0.83.0",
+    "@nivo/line": "^0.83.0",
+    "@nivo/pie": "^0.83.0",
+    // UI components and design systems
+    "@mui/material": "^5.14.18",
+    "@mui/icons-material": "^5.14.18",
+    "@mui/x-data-grid": "^6.18.1",
+    "@emotion/react": "^11.11.1",
+    "@emotion/styled": "^11.11.0",
+    // Form handling
+    "react-hook-form": "^7.48.2",
+    "yup": "^1.3.2",
+    // Data utilities
+    "lodash": "^4.17.21",
+    "date-fns": "^2.30.0",
+    // Data tables
+    "react-table": "^7.8.0",
+  };
+
   return (
     <MyRuntimeProvider>
       <div className="app-container">
         <div className="content-container">
           <header className="app-header">
-            <h1 className="app-title">Data Visualization Assistant</h1>
-            <p className="app-subtitle">Upload a CSV file and ask questions to generate interactive visualizations</p>
+            <h1 className="app-title">Interactive Data Assistant</h1>
+            <p className="app-subtitle">Upload a CSV file and ask questions to generate interactive components</p>
           </header>
           
           <div className="two-column-grid">
@@ -300,7 +347,7 @@ export const headers = [];
                       </div>
                       <h3 className="text-lg font-medium mb-1">Ask me anything about your data</h3>
                       <p className="text-sm text-gray-500">
-                        Upload a CSV file and start asking questions to visualize your data
+                        Upload a CSV file and start asking questions to create interactive components
                       </p>
                     </div>
                   ) : (
@@ -324,7 +371,7 @@ export const headers = [];
                           <div className="w-2 h-2 rounded-full animate-pulse bg-gray-500 animation-delay-200"></div>
                           <div className="w-2 h-2 rounded-full animate-pulse bg-gray-500 animation-delay-400"></div>
                           <span className="text-sm">
-                            {isRegenerating ? "Fixing visualization..." : "Generating visualization..."}
+                            {isRegenerating ? "Fixing component..." : "Generating component..."}
                           </span>
                         </div>
                       </div>
@@ -338,7 +385,7 @@ export const headers = [];
                       type="text"
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
-                      placeholder={fileUrl ? "Ask a question about your data..." : "Upload a file first..."}
+                      placeholder={fileUrl ? "Request a component..." : "Upload a file first..."}
                       className="chat-input"
                       disabled={!fileUrl || isUploading || isGenerating || isRegenerating}
                     />
@@ -360,7 +407,7 @@ export const headers = [];
           {artifactCode && (
             <div className="visualization-container card">
               <div className="visualization-header">
-                <h2 className="card-title">Data Visualization</h2>
+                <h2 className="card-title">Component</h2>
                 <div className="flex items-center space-x-2">
                   {retryCount > 0 && (
                     <span className="text-xs text-yellow-400">
@@ -379,7 +426,46 @@ export const headers = [];
                     template="react-ts"
                     files={{ 
                       "/App.tsx": artifactCode,
-                      "/data.ts": dataFile
+                      "/data.ts": dataFile,
+                      // Add a "fix" file to help with Material UI setup
+                      "/mui-setup.tsx": `
+import React from 'react';
+import { StyledEngineProvider, ThemeProvider, createTheme } from '@mui/material/styles';
+
+// Create a dark theme for MUI
+const darkTheme = createTheme({
+  palette: {
+    mode: 'dark',
+  },
+});
+
+// This component will wrap our App component with the necessary MUI providers
+export default function MUIWrapper({ children }) {
+  return (
+    <StyledEngineProvider injectFirst>
+      <ThemeProvider theme={darkTheme}>
+        {children}
+      </ThemeProvider>
+    </StyledEngineProvider>
+  );
+}
+`,
+                      // Modify index file to use the MUI wrapper
+                      "/index.tsx": `
+import React, { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import App from "./App";
+import MUIWrapper from "./mui-setup";
+
+const root = createRoot(document.getElementById("root")!);
+root.render(
+  <StrictMode>
+    <MUIWrapper>
+      <App />
+    </MUIWrapper>
+  </StrictMode>
+);
+`
                     }}
                     options={{ 
                       showConsole: true, 
@@ -389,25 +475,20 @@ export const headers = [];
                       editorWidthPercentage: 40,
                       wrapContent: true,
                       externalResources: [
-                        "https://cdn.jsdelivr.net/npm/chart.js"
+                        "https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap",
+                        "https://fonts.googleapis.com/icon?family=Material+Icons"
                       ]
                     }}
                     customSetup={{
-                      dependencies: {
-                        "react-chartjs-2": "latest",
-                        "chart.js": "latest",
-                        "@nivo/core": "latest",
-                        "@nivo/bar": "latest",
-                        "@nivo/line": "latest",
-                        "@nivo/pie": "latest",
-                      },
+                      dependencies: sandpackDependencies,
+                      entry: "/index.tsx"
                     }}
                   />
                 </ErrorMonitor>
                 {(generationError || runtimeError) && (
                   <div className="p-4 bg-red-900/20 border-t border-red-700">
                     <p className="text-red-300 text-sm">
-                      <strong>Note:</strong> {isRegenerating ? "Attempting to fix error..." : "There was an error with the visualization."}
+                      <strong>Note:</strong> {isRegenerating ? "Attempting to fix error..." : "There was an error with the component."}
                     </p>
                     <p className="text-gray-400 text-xs mt-1">Error details: {runtimeError || generationError}</p>
                   </div>
