@@ -92,7 +92,7 @@ export async function generateCode(
     6. Include appropriate error handling and loading states
     7. Consider the full range of possible UI components beyond just charts - tables, forms, cards, etc.
     8. Make the interface responsive and user-friendly
-    9. Use all of the data provided in the CSV, including headers and rows unless specified otherwise
+    9. Include all of the values provided in the CSV for the columns used in the visualization
     
     # Common Error Prevention
     1. NEVER use variables without declaring them first
