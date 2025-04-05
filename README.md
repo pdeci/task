@@ -59,39 +59,12 @@ Users interact with the AI assistant through a chat interface:
 ```
 1. User sends a query about their data
 2. Query is processed by AI using the Vercel AI SDK
-3. Assistant responds with text response
-4. In parallel, a visualization is generated
+3. A visualization is generated
 ```
 
 ### 3. Visualization Generation
 
-The system generates custom visualizations based on user queries:
-
-```pseudocode
-function generateVisualization(fileUrl, userQuery):
-  // Fetch and parse CSV data
-  csvData = fetchCSV(fileUrl)
-  parsedData = parseCSV(csvData)
-  
-  // Analyze query to determine visualization type
-  queryType = analyzeQuery(userQuery)
-  
-  // Generate visualization code with error handling
-  try:
-    for retry in range(MAX_RETRIES):
-      try:
-        // Generate code with AI
-        code = generateCodeWithAI(parsedData, userQuery, previousError)
-        return code
-      catch error:
-        previousError = error
-        continue
-    
-    // Fall back to default visualization if all retries fail
-    return generateDefaultVisualization(parsedData)
-  catch:
-    return errorComponent()
-```
+The system generates custom visualizations based on user queries.
 
 ### 4. Error Handling & Recovery
 
@@ -102,7 +75,7 @@ The system employs a robust error handling mechanism:
 3. Implements multiple retry attempts with progressive enhancement
 4. Falls back to a default visualization if all attempts fail
 
-### Data flow
+## Data flow
 
 ```
 [CLIENT]                              [SERVER]
@@ -163,8 +136,10 @@ Sandpack Renderer                        |
 │   ├── api
 │   │   ├── chat
 │   │   │   └── route.ts        # AI chat endpoint
-│   │   └── upload
-│   │       └── route.ts        # File upload handler
+│   │   ├── upload
+│   │   │   └── route.ts        # File upload handler
+│   │   └── regenerate
+│   │       └── route.ts        # Error recovery handler
 │   ├── globals.css             # Global styles including dark theme
 │   └── page.tsx                # Main UI component
 ├── lib
@@ -210,7 +185,6 @@ Sandpack Renderer                        |
 1. **Upload Data**: Click the upload area to select and upload your CSV file
 2. **Ask Questions**: Type questions about your data in the chat interface
 3. **View Visualizations**: The system will generate and display relevant visualizations
-4. **Interact**: Ask follow-up questions to refine or create new visualizations
 
 ## Implementation Details
 
@@ -242,6 +216,6 @@ The generated code is enhanced with:
 ## Future Enhancements
 
 - Support for additional file formats (Excel, JSON)
-- More visualization types (heatmaps, geographic maps)
+- Iterative use of the chat
 - User accounts and saved visualizations
 - Filtering and data manipulation capabilities
