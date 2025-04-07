@@ -69,7 +69,7 @@ export async function generateCode(
     # CSV Data
     Headers: ${parsedData.meta.fields?.join(', ') || ''}
     Number of rows: ${parsedData.data.length}
-    Sample data: ${JSON.stringify(parsedData.data.slice(0, 3))}
+    Sample data: ${JSON.stringify(parsedData.data.slice(0, 15))}
     
     ${previousError ? `
     # Previous Error
@@ -131,7 +131,7 @@ export async function generateCode(
     - @mui/material, @mui/icons-material (for UI components)
     - @mui/x-data-grid (for advanced data tables and grids)
     - @emotion/react, @emotion/styled (for styling Material UI)
-    - react-hook-form, yup (for form handling)
+    - react-hook-form, @hookform/resolvers/yup, yup (for form handling and validation)
     - lodash, date-fns (for data utilities)
     - @nivo/core, @nivo/bar, @nivo/line, @nivo/pie (for advanced visualizations)
     
