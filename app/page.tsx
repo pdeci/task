@@ -219,29 +219,30 @@ export const headers = [];
 `;
 
   // Define an expanded set of dependencies for different UI component types
-  const sandpackDependencies = {
-    // Data visualization
-    "react-chartjs-2": "^5.2.0",
-    "chart.js": "^4.4.0",
-    "@nivo/core": "^0.83.0",
-    "@nivo/bar": "^0.83.0",
-    "@nivo/line": "^0.83.0",
-    "@nivo/pie": "^0.83.0",
-    // UI components and design systems
-    "@mui/material": "^5.14.18",
-    "@mui/icons-material": "^5.14.18",
-    "@mui/x-data-grid": "^6.18.1",
-    "@emotion/react": "^11.11.1",
-    "@emotion/styled": "^11.11.0",
-    // Form handling
-    "react-hook-form": "^7.48.2",
-    "yup": "^1.3.2",
-    // Data utilities
-    "lodash": "^4.17.21",
-    "date-fns": "^2.30.0",
-    // Data tables
-    "react-table": "^7.8.0",
-  };
+const sandpackDependencies = {
+  // Data visualization
+  "react-chartjs-2": "^5.2.0",
+  "chart.js": "^4.4.0",
+  "@nivo/core": "^0.83.0",
+  "@nivo/bar": "^0.83.0",
+  "@nivo/line": "^0.83.0",
+  "@nivo/pie": "^0.83.0",
+  // UI components and design systems
+  "@mui/material": "^5.14.18",
+  "@mui/icons-material": "^5.14.18",
+  "@mui/x-data-grid": "^6.18.1",
+  "@emotion/react": "^11.11.1",
+  "@emotion/styled": "^11.11.0",
+  // Form handling
+  "react-hook-form": "^7.48.2",
+  "@hookform/resolvers": "^3.3.2",
+  "yup": "^1.3.2",
+  // Data utilities
+  "lodash": "^4.17.21",
+  "date-fns": "^2.30.0",
+  // Data tables
+  "react-table": "^7.8.0",
+};
 
   return (
     <MyRuntimeProvider>
